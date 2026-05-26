@@ -2,18 +2,22 @@ export type PackageStatus = 'AVAILABLE' | 'SOLD_OUT' | 'CANCELLED' | 'EXPIRED' |
 
 export interface TourPackage {
   id: number;
+  name: string;
   destination: string;
+  description: string;
   price: number;
-  availableSlots: number;
+  totalSlots: number;
   startDate: string; 
   endDate: string; 
   status: PackageStatus;
 }
 
 export interface TourPackageRequest {
+  name: string;
   destination: string;
+  description: string;
   price: number;
-  availableSlots: number;
+  totalSlots: number;
   startDate: string;
   endDate: string;
   status: PackageStatus;

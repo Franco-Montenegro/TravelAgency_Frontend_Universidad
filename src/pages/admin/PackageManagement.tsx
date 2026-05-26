@@ -1,54 +1,60 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Button, Table, TableBody, TableCell, 
   TableContainer, TableHead, TableRow, Paper, IconButton, Dialog, 
-  DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Chip 
+  DialogTitle, DialogContent, DialogActions, TextField, MenuItem, Chip,
+  CircularProgress, Alert 
 } from '@mui/material';
 import { Delete, Edit, Add } from '@mui/icons-material';
+import { packageService } from '../../services/packageService';
 import type { TourPackage, TourPackageRequest } from '../../interfaces/package.interface';
 
-const INITIAL_PACKAGES_MOCK: TourPackage[] = [
-  {
-    id: 1,
-    destination: 'San Pedro de Atacama',
-    price: 450000,
-    availableSlots: 12,
-    startDate: '2026-07-15',
-    endDate: '2026-07-22',
-    status: 'AVAILABLE'
-  },
-  {
-    id: 2,
-    destination: 'Torres del Paine',
-    price: 890000,
-    availableSlots: 0,
-    status: 'SOLD_OUT',
-    startDate: '2026-08-01',
-    endDate: '2026-08-10'
-  }
-];
-
 export default function PackageManagement() {
-  const [packages, setPackages] = useState<TourPackage[]>(INITIAL_PACKAGES_MOCK);
+  const [packages, setPackages] = useState<TourPackage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [openModal, setOpenModal] = useState(false);
   const [selectedPackage, setSelectedPackage] = useState<TourPackage | null>(null);
 
   const [formData, setFormData] = useState<TourPackageRequest>({
+    name: '',
     destination: '',
+    description: '',
     price: 0,
-    availableSlots: 0,
+    totalSlots: 0, //
     startDate: '',
     endDate: '',
     status: 'AVAILABLE'
   });
 
+  const loadPackages = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await packageService.getAllPackages();
+      setPackages(data);
+    } catch (err: any) {
+      setError('Error al conectar con el servidor Spring Boot. Verifica que el Backend esté encendido.');
+      console.error('[Mingeso-API Error]', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    loadPackages();
+  }, []);
+
   const handleOpenModal = (pkg: TourPackage | null = null) => {
     if (pkg) {
       setSelectedPackage(pkg);
       setFormData({
+        name: pkg.name,
         destination: pkg.destination,
+        description: pkg.description,
         price: pkg.price,
-        availableSlots: pkg.availableSlots,
+        totalSlots: pkg.totalSlots,
         startDate: pkg.startDate,
         endDate: pkg.endDate,
         status: pkg.status
@@ -56,9 +62,11 @@ export default function PackageManagement() {
     } else {
       setSelectedPackage(null);
       setFormData({
+        name: '',
         destination: '',
+        description: '',
         price: 0,
-        availableSlots: 0,
+        totalSlots: 0,
         startDate: '',
         endDate: '',
         status: 'AVAILABLE'
@@ -67,40 +75,57 @@ export default function PackageManagement() {
     setOpenModal(true);
   };
 
-  const handleSave = () => {
-    if (selectedPackage) {
-      setPackages(packages.map(p => p.id === selectedPackage.id ? { ...p, ...formData } : p));
-      console.log(`[Mingeso-Admin] Simulación PUT exitosa para ID: ${selectedPackage.id}`);
-    } else {
-      const newPkg: TourPackage = {
-        id: Date.now(), 
-        ...formData
-      };
-      setPackages([...packages, newPkg]);
-      console.log('[Mingeso-Admin] Simulación POST exitosa');
+  const handleSave = async () => {
+    try {
+      if (selectedPackage) {
+        const updated = await packageService.updatePackage(selectedPackage.id, formData);
+        setPackages(packages.map(p => p.id === selectedPackage.id ? updated : p));
+      } else {
+        const created = await packageService.createPackage(formData);
+        setPackages([...packages, created]);
+      }
+      setOpenModal(false);
+    } catch (err) {
+      alert('Error al guardar el paquete turístico. Revisa los campos y la consola.');
     }
-    setOpenModal(false);
   };
 
-  const handleDeleteLogical = (id: number) => {
-    setPackages(packages.map(p => p.id === id ? { ...p, status: 'DELETED' } : p));
-    console.log(`[Mingeso-Admin] Simulación DELETE Lógico ejecutada para ID: ${id}`);
+  const handleDeleteLogical = async (id: number) => {
+    if (window.confirm('¿Estás seguro de que deseas aplicar borrado lógico a este paquete?')) {
+      try {
+        await packageService.deletePackageLogical(id);
+        loadPackages();
+      } catch (err) {
+        alert('No se pudo procesar el borrado lógico del paquete.');
+      }
+    }
   };
 
   const getStatusChip = (status: string) => {
     switch (status) {
       case 'AVAILABLE': return <Chip label="Disponible" color="success" size="small" />;
       case 'SOLD_OUT': return <Chip label="Agotado" color="warning" size="small" />;
+      case 'CANCELLED': return <Chip label="Cancelado" color="default" size="small" />;
+      case 'EXPIRED': return <Chip label="Expirado" color="default" size="small" />;
       case 'DELETED': return <Chip label="Eliminado" color="error" size="small" variant="outlined" />;
       default: return <Chip label={status} size="small" />;
     }
   };
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
 
   return (
     <Container maxWidth="lg" sx={{ marginTop: '2rem' }}>
+      {error && <Alert severity="error" sx={{ marginBottom: '2rem' }}>{error}</Alert>}
+
       <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
-        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold', color: 'text.primary' }}>
-          Gestión de Paquetes Turísticos
+        <Typography variant="h4" component="h1" sx={{ fontWeight: 'bold' }} color="text.primary">
+          Gestión de Paquetes Turísticos (Modo Integrado)
         </Typography>
         <Button 
           variant="contained" 
@@ -112,26 +137,25 @@ export default function PackageManagement() {
         </Button>
       </Box>
 
-      {/* Tabla Maestra de MUI */}
       <TableContainer component={Paper} elevation={3}>
         <Table>
           <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
             <TableRow>
-              <TableCell style={{ fontWeight: 'bold' }}>Destino</TableCell>
-              <TableCell style={{ fontWeight: 'bold' }}>Precio Base</TableCell>
-              <TableCell style={{ fontWeight: 'bold' }}>Cupos</TableCell>
-              <TableCell style={{ fontWeight: 'bold' }}>Inicio</TableCell>
-              <TableCell style={{ fontWeight: 'bold' }}>Término</TableCell>
-              <TableCell style={{ fontWeight: 'bold' }}>Estado</TableCell>
-              <TableCell style={{ fontWeight: 'bold' }} align="center">Acciones</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Destino</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Precio Base</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Cupos</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Inicio</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Término</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }}>Estado</TableCell>
+              <TableCell sx={{ fontWeight: 'bold' }} align="center">Acciones</TableCell>
             </TableRow>
           </TableHead>
           <TableBody>
             {packages.map((pkg) => (
-              <TableRow key={pkg.id} hover style={{ opacity: pkg.status === 'DELETED' ? 0.6 : 1 }}>
+              <TableRow key={pkg.id} hover sx={{ opacity: pkg.status === 'DELETED' ? 0.5 : 1 }}>
                 <TableCell>{pkg.destination}</TableCell>
                 <TableCell>${pkg.price.toLocaleString('es-CL')}</TableCell>
-                <TableCell>{pkg.availableSlots}</TableCell>
+                <TableCell>{pkg.totalSlots}</TableCell>
                 <TableCell>{pkg.startDate}</TableCell>
                 <TableCell>{pkg.endDate}</TableCell>
                 <TableCell>{getStatusChip(pkg.status)}</TableCell>
@@ -153,13 +177,20 @@ export default function PackageManagement() {
                 </TableCell>
               </TableRow>
             ))}
+            {packages.length === 0 && !error && (
+              <TableRow>
+                <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                  No existen paquetes creados en la base de datos de Spring Boot aún.
+                </TableCell>
+              </TableRow>
+            )}
           </TableBody>
         </Table>
       </TableContainer>
 
-      {/* Formulario Modal (Dialog) para Crear y Editar */}
+      {/* Formulario Modal (Dialog) */}
       <Dialog open={openModal} onClose={() => setOpenModal(false)} maxWidth="sm" fullWidth>
-        <DialogTitle>{selectedPackage ? 'Editar Paquete' : 'Crear Nuevo Paquete'}</DialogTitle>
+        <DialogTitle>{selectedPackage ? 'Editar Paquete Turístico' : 'Crear Nuevo Paquete Turístico'}</DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 1 }}>
             <TextField
@@ -180,8 +211,8 @@ export default function PackageManagement() {
                 label="Cupos Disponibles"
                 type="number"
                 fullWidth
-                value={formData.availableSlots || ''}
-                onChange={(e) => setFormData({ ...formData, availableSlots: Number(e.target.value) })}
+                value={formData.totalSlots || ''}
+                onChange={(e) => setFormData({ ...formData, totalSlots: Number(e.target.value) })}
               />
             </Box>
             <Box sx={{ display: 'flex', gap: 2 }}>
@@ -189,9 +220,7 @@ export default function PackageManagement() {
                 label="Fecha Inicio"
                 type="date"
                 fullWidth
-                slotProps={{
-                  inputLabel: { shrink: true }
-                }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={formData.startDate}
                 onChange={(e) => setFormData({ ...formData, startDate: e.target.value })}
               />
@@ -199,9 +228,7 @@ export default function PackageManagement() {
                 label="Fecha Término"
                 type="date"
                 fullWidth
-                slotProps={{
-                  inputLabel: { shrink: true }
-                }}
+                slotProps={{ inputLabel: { shrink: true } }}
                 value={formData.endDate}
                 onChange={(e) => setFormData({ ...formData, endDate: e.target.value })}
               />
@@ -222,7 +249,7 @@ export default function PackageManagement() {
         </DialogContent>
         <DialogActions>
           <Button onClick={() => setOpenModal(false)} color="inherit">Cancelar</Button>
-          <Button onClick={handleSave} color="primary" variant="contained">Guardar</Button>
+          <Button onClick={handleSave} color="primary" variant="contained">Guardar Cambios</Button>
         </DialogActions>
       </Dialog>
     </Container>
