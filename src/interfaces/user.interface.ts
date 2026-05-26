@@ -1,4 +1,3 @@
-
 export type AccountStatus = 'ACTIVE' | 'INACTIVE';
 
 export interface User {
