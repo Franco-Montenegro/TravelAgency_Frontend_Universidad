@@ -1,97 +1,70 @@
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { 
-  Container, Typography, Box, TextField, Card, CardContent, 
-  CardActions, Button, Grid, Paper, InputAdornment 
+  Container, Typography, Box, Grid, Card, CardContent, 
+  Button, TextField, CircularProgress, Alert, InputAdornment, 
+  Paper
 } from '@mui/material';
-import { Search, AttachMoney, FlightTakeoff, Event } from '@mui/icons-material';
+import { Search, FlightTakeoff, Event, Person } from '@mui/icons-material';
+import { packageService } from '../../services/packageService';
 import type { TourPackage } from '../../interfaces/package.interface';
 
-const PACKAGES_CATALOG_MOCK: TourPackage[] = [
-  {
-    id: 1,
-    destination: 'San Pedro de Atacama',
-    price: 450000,
-    availableSlots: 12,
-    startDate: '2026-07-15',
-    endDate: '2026-07-22',
-    status: 'AVAILABLE'
-  },
-  {
-    id: 2,
-    destination: 'Torres del Paine',
-    price: 890000,
-    availableSlots: 4,
-    startDate: '2026-08-01',
-    endDate: '2026-08-10',
-    status: 'AVAILABLE'
-  },
-  {
-    id: 3,
-    destination: 'Isla de Pascua',
-    price: 1200000,
-    availableSlots: 8,
-    startDate: '2026-09-10',
-    endDate: '2026-09-18',
-    status: 'AVAILABLE'
-  },
-  {
-    id: 4,
-    destination: 'San Pedro de Atacama (Express)',
-    price: 250000,
-    availableSlots: 0,
-    startDate: '2026-07-18',
-    endDate: '2026-07-21',
-    status: 'SOLD_OUT' 
-  }
-];
-
 export default function PackageCatalog() {
+  const [packages, setPackages] = useState<TourPackage[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+
   const [searchDestination, setSearchDestination] = useState('');
   const [maxPrice, setMaxPrice] = useState<number | ''>('');
-  const [filterDate, setFilterDate] = useState('');
 
-  const filteredPackages = PACKAGES_CATALOG_MOCK.filter((pkg) => {
-    if (pkg.status !== 'AVAILABLE') return false;
-    
-    const matchesDestination = pkg.destination.toLowerCase().includes(searchDestination.toLowerCase());
+  useEffect(() => {
+    const fetchCatalog = async () => {
+      try {
+        setLoading(true);
+        const data = await packageService.getAllPackages();
+        const availableOnly = data.filter(p => p.status === 'AVAILABLE');
+        setPackages(availableOnly);
+      } catch (err) {
+        setError('No se pudo cargar el catálogo de viajes. Inténtalo más tarde.');
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetchCatalog();
+  }, []);
+
+  const filteredPackages = packages.filter(pkg => {
+    const matchesDestination = pkg.destination.toLowerCase().includes(searchDestination.toLowerCase()) ||
+                               pkg.name.toLowerCase().includes(searchDestination.toLowerCase());
     const matchesPrice = maxPrice === '' || pkg.price <= maxPrice;
-    const matchesDate = !filterDate || pkg.startDate >= filterDate;
-
-    return matchesDestination && matchesPrice && matchesDate;
+    return matchesDestination && matchesPrice;
   });
 
+  if (loading) {
+    return (
+      <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
+        <CircularProgress />
+      </Box>
+    );
+  }
+
   return (
-    <Container maxWidth="lg" sx={{ marginTop: '2rem' }}>
-      <Typography 
-        variant="h4" 
-        component="h1" 
-        gutterBottom 
-        color="text.primary"
-        sx={{ fontWeight: 'bold' }}
-      >
-        Encuentra tu Próximo Destino
+    <Container maxWidth="lg" sx={{ marginTop: '3rem', marginBottom: '3rem' }}>
+      <Typography variant="h3" component="h1" sx={{ fontWeight: 'bold', marginBottom: '1rem' }} color="primary">
+        Descubre tu Próximo Destino
+      </Typography>
+      <Typography variant="h6" sx={{ color: 'text.secondary', marginBottom: '3rem' }}>
+        Explora nuestros paquetes turísticos exclusivos con todo incluido.
       </Typography>
 
-      <Typography 
-        variant="subtitle1" 
-        color="text.secondary" 
-        sx={{ marginBottom: '2.5rem' }}
-      >
-        Explora nuestros paquetes turísticos disponibles y compra de forma 100% autónoma.
-      </Typography>
+      {error && <Alert severity="error" sx={{ marginBottom: '2rem' }}>{error}</Alert>}
 
-      <Paper elevation={2} sx={{ padding: '1.5rem', marginBottom: '3rem', backgroundColor: '#fff' }}>
-        <Grid 
-          container 
-          spacing={2} 
-          sx={{ alignItems: 'center' }}
-        >
-          <Grid size={{ xs: 12, md: 4 }}>
+      <Paper elevation={2} sx={{ p: 3, marginBottom: '4rem', backgroundColor: '#fafafa', borderRadius: '12px' }}>
+        <Grid container spacing={3}>
+          <Grid size={{ xs: 12, sm: 6 }}>  
             <TextField
               label="¿A dónde quieres ir?"
               fullWidth
-              variant="outlined"
-              size="small"
               value={searchDestination}
               onChange={(e) => setSearchDestination(e.target.value)}
               slotProps={{
@@ -105,98 +78,94 @@ export default function PackageCatalog() {
               }}
             />
           </Grid>
-          <Grid size={{ xs: 12, md: 4 }}>
+          <Grid size={{ xs: 12, sm: 6 }}>  
             <TextField
-              label="Precio Máximo"
+              label="Precio Máximo ($)"
               type="number"
               fullWidth
-              variant="outlined"
-              size="small"
               value={maxPrice}
-              onChange={(e) => setFormDataPrice(e.target.value)}
+              onChange={(e) => setMaxPrice(e.target.value === '' ? '' : Number(e.target.value))}
               slotProps={{
                 input: {
-                  startAdornment: (
-                    <InputAdornment position="start">
-                      <AttachMoney color="action" />
-                    </InputAdornment>
-                  ),
+                  startAdornment: <InputAdornment position="start">$</InputAdornment>,
                 },
-              }}
-            />
-          </Grid>
-          <Grid size={{ xs: 12, md: 4 }}>
-            <TextField
-              label="A partir de la fecha"
-              type="date"
-              fullWidth
-              variant="outlined"
-              size="small"
-              value={filterDate}
-              onChange={(e) => setFilterDate(e.target.value)}
-              slotProps={{
-                inputLabel: { shrink: true }
               }}
             />
           </Grid>
         </Grid>
       </Paper>
 
-      {filteredPackages.length === 0 ? (
-        <Box sx={{ textAlign: 'center', marginTop: '4rem', color: 'text.secondary' }}>
-          <Typography variant="h6">No se encontraron viajes disponibles con los filtros aplicados.</Typography>
-        </Box>
-      ) : (
-        <Grid container spacing={3}>
-          {filteredPackages.map((pkg) => (
-            <Grid size={{ xs: 12, sm: 6, md: 4 }} key={pkg.id}>
-              <Card elevation={3} sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between' }}>
-                <CardContent sx={{ flexGrow: 1 }}>
-                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginBottom: 1.5 }}>
-                    <FlightTakeoff color="primary" />
-                    <Typography variant="h6" component="h2" sx={{ fontWeight: 'bold' }}>
-                      {pkg.destination}
-                    </Typography>
-                  </Box>
-                  
-                  <Typography variant="h5" color="primary" sx={{ fontWeight: 'bold', marginY: 1.5 }}>
-                    ${pkg.price.toLocaleString('es-CL')}
+      {/* 🛒 GRILLA DEL CATÁLOGO DE VIAJES */}
+      <Grid container spacing={4}>
+        {filteredPackages.map((pkg) => (
+          <Grid size={{ xs: 12, sm: 6,  md: 4 }} key={pkg.id}>  
+            <Card sx={{ height: '100%', display: 'flex', flexDirection: 'column', justifyContent: 'space-between', borderRadius: '16px' }} elevation={4}>
+              <CardContent sx={{ p: 3 }}>
+                <Box sx={{ display: 'flex', alignItems: 'center', gap: 1, marginBottom: '1rem' }}>
+                  <FlightTakeoff color="primary" />
+                  <Typography variant="h5" component="h2" sx={{ fontWeight: 'bold' }}>
+                    {pkg.name}
                   </Typography>
+                </Box>
+                
+                <Typography variant="subtitle1" sx={{ fontWeight: 'bold', color: 'text.secondary', mb: 2 }}>
+                  Destino: {pkg.destination}
+                </Typography>
 
-                  <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.8, marginTop: 2 }}>
-                    <Typography variant="body2" color="text.secondary" sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
-                      <Event fontSize="small" /> 
+                <Typography variant="body2" color="text.secondary" sx={{ minHeight: '60px', mb: 3 }}>
+                  {pkg.description || 'Disfruta de una experiencia única con itinerarios organizados por expertos locales.'}
+                </Typography>
+
+                <Box sx={{ display: 'flex', flexDirection: 'column', gap: 1, backgroundColor: '#f0f4f8', p: 2, borderRadius: '8px' }}>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Event fontSize="small" color="action" />
+                    <Typography variant="caption" color="text.primary">
                       {pkg.startDate} al {pkg.endDate}
                     </Typography>
-                    <Typography variant="body2" color={pkg.availableSlots <= 5 ? 'error.main' : 'text.secondary'} sx={{ fontWeight: 'medium' }}>
-                      Cupos disponibles: {pkg.availableSlots}
+                  </Box>
+                  <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+                    <Person fontSize="small" color="action" />
+                    <Typography variant="caption" sx={{ fontWeight: 'bold' }} color={pkg.totalSlots <= 5 ? 'error.main' : 'success.main'}>
+                      {pkg.totalSlots} cupos disponibles
                     </Typography>
                   </Box>
-                </CardContent>
+                </Box>
+              </CardContent>
+
+              <Box sx={{ p: 3, pt: 0 }}>
+                <Box sx={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', mb: 2 }}>
+                  <Typography variant="caption" color="text.secondary">Precio por persona</Typography>
+                  <Typography variant="h5" sx={{ fontWeight: 'bold', color: 'primary.main' }}>
+                    ${pkg.price.toLocaleString('es-CL')}
+                  </Typography>
+                </Box>
                 
-                <CardActions sx={{ padding: '1rem', paddingTop: 0 }}>
-                  <Button 
-                    variant="contained" 
-                    color="primary" 
-                    fullWidth
-                    onClick={() => console.log(`[Mingeso-Cliente] Redirigiendo a reserva del paquete: ${pkg.id}`)}
-                  >
-                    Reservar Ahora
-                  </Button>
-                </CardActions>
-              </Card>
-            </Grid>
-          ))}
-        </Grid>
-      )}
+                {/* 💡 Este botón conectará directamente con la Épica 4 (Proceso de Reserva) */}
+                <Button 
+                  variant="contained" 
+                  color="secondary" 
+                  fullWidth 
+                  size="large"
+                  sx={{ borderRadius: '8px', fontWeight: 'bold' }}
+                  onClick={() => alert(`¡Próximamente! Conectaremos la reserva del paquete: ${pkg.name}`)}
+                >
+                  Reservar Viaje
+                </Button>
+              </Box>
+            </Card>
+          </Grid>
+        ))}
+
+        {filteredPackages.length === 0 && (
+          <Grid size={{ xs: 12 }}>
+            <Box sx={{ textAlign: 'center', py: 8 }}>
+              <Typography variant="h6" color="text.secondary">
+                No encontramos paquetes disponibles que coincidan con tus criterios de búsqueda.
+              </Typography>
+            </Box>
+          </Grid>
+        )}
+      </Grid>
     </Container>
   );
-
-  function setFormDataPrice(value: string) {
-    if (value === '') {
-      setMaxPrice('');
-    } else {
-      setMaxPrice(Number(value));
-    }
-  }
 }
