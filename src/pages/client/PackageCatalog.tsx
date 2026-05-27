@@ -2,10 +2,11 @@ import { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Grid, Card, CardContent, 
   Button, TextField, CircularProgress, Alert, InputAdornment, 
-  Paper
+  Paper, Dialog, DialogTitle, DialogContent, DialogActions
 } from '@mui/material';
 import { Search, FlightTakeoff, Event, Person } from '@mui/icons-material';
 import { packageService } from '../../services/packageService';
+import { bookingService } from '../../services/bookingService';
 import type { TourPackage } from '../../interfaces/package.interface';
 
 export default function PackageCatalog() {
@@ -16,22 +17,64 @@ export default function PackageCatalog() {
   const [searchDestination, setSearchDestination] = useState('');
   const [maxPrice, setMaxPrice] = useState<number | ''>('');
 
+  const [openReserveModal, setOpenReserveModal] = useState(false);
+  const [activePackage, setActivePackage] = useState<TourPackage | null>(null);
+  const [passengers, setPassengers] = useState<number>(1);
+  const [submitting, setSubmitting] = useState(false);
+
+  const fetchCatalog = async () => {
+    try {
+      setLoading(true);
+      const data = await packageService.getAllPackages();
+      const availableOnly = data.filter(p => p.status === 'AVAILABLE');
+      setPackages(availableOnly);
+    } catch (err) {
+      setError('No se pudo cargar el catálogo de viajes. Inténtalo más tarde.');
+      console.error(err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const fetchCatalog = async () => {
-      try {
-        setLoading(true);
-        const data = await packageService.getAllPackages();
-        const availableOnly = data.filter(p => p.status === 'AVAILABLE');
-        setPackages(availableOnly);
-      } catch (err) {
-        setError('No se pudo cargar el catálogo de viajes. Inténtalo más tarde.');
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
     fetchCatalog();
   }, []);
+
+  const handleOpenReserve = (pkg: TourPackage) => {
+    setActivePackage(pkg);
+    setPassengers(1);
+    setOpenReserveModal(true);
+  };
+
+  const handleConfirmReservation = async () => {
+    if (!activePackage) return;
+    if (passengers <= 0) {
+      alert('La cantidad de pasajeros debe ser mayor que cero.');
+      return;
+    }
+
+    try {
+      setSubmitting(true);
+      
+      const payload = {
+        passengersCount: passengers,
+        user: { id: 1 }, 
+        tourPackage: { id: activePackage.id }
+      };
+
+      const result = await bookingService.createBooking(payload);
+      
+      alert(`¡Reserva Creada Exitosamente!\nMonto Final Calculado: $${result.totalAmount.toLocaleString('es-CL')}\nEstado: ${result.stateBooking}`);
+      
+      setOpenReserveModal(false);
+      fetchCatalog(); 
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'Error al procesar la reserva. Verifica los cupos libres.';
+      alert(errorMsg);
+    } finally {
+      setSubmitting(false);
+    }
+  };
 
   const filteredPackages = packages.filter(pkg => {
     const matchesDestination = pkg.destination.toLowerCase().includes(searchDestination.toLowerCase()) ||
@@ -95,7 +138,6 @@ export default function PackageCatalog() {
         </Grid>
       </Paper>
 
-      {/* 🛒 GRILLA DEL CATÁLOGO DE VIAJES */}
       <Grid container spacing={4}>
         {filteredPackages.map((pkg) => (
           <Grid size={{ xs: 12, sm: 6,  md: 4 }} key={pkg.id}>  
@@ -125,8 +167,9 @@ export default function PackageCatalog() {
                   </Box>
                   <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                     <Person fontSize="small" color="action" />
-                    <Typography variant="caption" sx={{ fontWeight: 'bold' }} color={pkg.totalSlots <= 5 ? 'error.main' : 'success.main'}>
-                      {pkg.totalSlots} cupos disponibles
+                    {/* Se asume el uso de availableSlots de acuerdo con la definición de tu servicio */}
+                    <Typography variant="caption" sx={{ fontWeight: 'bold' }} color={(pkg.availableSlots !== undefined ? pkg.availableSlots : pkg.totalSlots) <= 5 ? 'error.main' : 'success.main'}>
+                      {pkg.availableSlots !== undefined ? pkg.availableSlots : pkg.totalSlots} cupos disponibles
                     </Typography>
                   </Box>
                 </Box>
@@ -140,16 +183,16 @@ export default function PackageCatalog() {
                   </Typography>
                 </Box>
                 
-                {/* 💡 Este botón conectará directamente con la Épica 4 (Proceso de Reserva) */}
                 <Button 
                   variant="contained" 
                   color="secondary" 
                   fullWidth 
                   size="large"
+                  disabled={pkg.availableSlots !== undefined && pkg.availableSlots <= 0}
                   sx={{ borderRadius: '8px', fontWeight: 'bold' }}
-                  onClick={() => alert(`¡Próximamente! Conectaremos la reserva del paquete: ${pkg.name}`)}
+                  onClick={() => handleOpenReserve(pkg)}
                 >
-                  Reservar Viaje
+                  {pkg.availableSlots !== undefined && pkg.availableSlots <= 0 ? 'Agotado' : 'Reservar Viaje'}
                 </Button>
               </Box>
             </Card>
@@ -166,6 +209,61 @@ export default function PackageCatalog() {
           </Grid>
         )}
       </Grid>
+
+      <Dialog open={openReserveModal} onClose={() => !submitting && setOpenReserveModal(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold' }}>Solicitud de Reserva</DialogTitle>
+        <DialogContent dividers>
+          {activePackage && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <Typography variant="subtitle1">
+                Vas a reservar para el paquete: <strong>{activePackage.name}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Precio unitario base: ${activePackage.price.toLocaleString('es-CL')}
+              </Typography>
+              <Typography variant="body2" color="primary.main">
+                Cupos reales remanentes: {activePackage.availableSlots !== undefined ? activePackage.availableSlots : activePackage.totalSlots}
+              </Typography>
+
+              <TextField
+                label="Cantidad de Pasajeros"
+                type="number"
+                fullWidth
+                slotProps={{
+                  input: {
+                    inputProps: {
+                      min: 1,
+                      max: activePackage.availableSlots !== undefined ? activePackage.availableSlots : activePackage.totalSlots,
+                    }
+                  }
+                }}
+                value={passengers}
+                onChange={(e) => setPassengers(Math.max(1, Number(e.target.value)))}
+                margin="normal"
+              />
+
+              <Box sx={{ backgroundColor: '#fcf8e3', p: 2, borderRadius: '8px', border: '1px solid #fbeed5' }}>
+                <Typography variant="caption" color="orange">
+                  * Nota: El sistema calculará de forma automática los descuentos correspondientes por volumen de pasajeros o fidelidad comercial histórica directa en el Backend.
+                </Typography>
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenReserveModal(false)} color="inherit" disabled={submitting}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleConfirmReservation} 
+            color="secondary" 
+            variant="contained"
+            disabled={submitting}
+          >
+            {submitting ? 'Procesando...' : 'Confirmar Reserva'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }

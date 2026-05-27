@@ -18,9 +18,9 @@ export default function PackageManagement() {
   const [selectedPackage, setSelectedPackage] = useState<TourPackage | null>(null);
 
   const [formData, setFormData] = useState<TourPackageRequest>({
-    name: '', // 💡 Agregado para Épica 2 y Reportes Épica 7
+    name: '',
     destination: '',
-    description: '', // 💡 Agregado para el Itinerario del cliente
+    description: '',
     price: 0,
     totalSlots: 0,
     startDate: '',
@@ -78,15 +78,22 @@ export default function PackageManagement() {
   const handleSave = async () => {
     try {
       if (selectedPackage) {
-        const updated = await packageService.updatePackage(selectedPackage.id, formData);
+        const updatedPayload = {
+          ...formData,
+          availableSlots: selectedPackage.availableSlots
+        };
+        const updated = await packageService.updatePackage(selectedPackage.id, updatedPayload);
         setPackages(packages.map(p => p.id === selectedPackage.id ? updated : p));
       } else {
-        const created = await packageService.createPackage(formData);
+        const createdPayload = {
+          ...formData,
+          availableSlots: formData.totalSlots
+        };
+        const created = await packageService.createPackage(createdPayload);
         setPackages([...packages, created]);
       }
       setOpenModal(false);
     } catch (err: any) {
-      // 💡 Capturamos el mensaje de error controlado del backend si la actualización es rechazada
       const errorMsg = err.response?.data?.message || 'Error al guardar el paquete turístico. Revisa las reglas de negocio.';
       alert(errorMsg);
     }

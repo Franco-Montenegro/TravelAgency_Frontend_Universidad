@@ -6,9 +6,10 @@ export interface TourPackage {
   destination: string;
   description: string;
   price: number;
-  totalSlots: number;
-  startDate: string; 
-  endDate: string; 
+  totalSlots: number;     
+  availableSlots: number; 
+  startDate: string;
+  endDate: string;
   status: PackageStatus;
 }
 
@@ -18,6 +19,7 @@ export interface TourPackageRequest {
   description: string;
   price: number;
   totalSlots: number;
+  availableSlots?: number;
   startDate: string;
   endDate: string;
   status: PackageStatus;

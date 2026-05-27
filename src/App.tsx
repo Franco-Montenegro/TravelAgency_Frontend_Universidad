@@ -10,7 +10,6 @@ export default function App() {
   return (
     <ThemeProvider theme={theme}>
       <CssBaseline /> 
-      {/* El AuthProvider envuelve a la navegación global */}
       <AuthProvider>
         <BrowserRouter>
           <Navbar /> 
