@@ -37,6 +37,10 @@ export default function Navbar() {
               {userRole === 'CLIENT' && (
                 <Button color="inherit" onClick={() => navigate('/packages')}>Catálogo</Button>
               )}
+
+              {userRole === 'CLIENT' && (
+                <Button color="inherit" onClick={() => navigate('/my-bookings')}>Mis Reservas</Button>
+              )}
               
               {userRole === 'ADMIN' && (
                 <Button color="inherit" onClick={() => navigate('/admin/packages')}>Admin Panel</Button>

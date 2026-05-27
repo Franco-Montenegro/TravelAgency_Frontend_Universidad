@@ -1,18 +1,14 @@
 import { api } from './api';
-
-export interface CreateBookingPayload {
-  passengersCount: number;
-  user: {
-    id: number;
-  };
-  tourPackage: {
-    id: number;
-  };
-}
+import type { Booking, CreateBookingPayload } from '../interfaces/booking.interface';
 
 export const bookingService = {
-  createBooking: async (payload: CreateBookingPayload) => {
-    const response = await api.post('/bookings/', payload); 
+  createBooking: async (payload: CreateBookingPayload): Promise<Booking> => {
+    const response = await api.post<Booking>('/bookings/', payload); 
+    return response.data;
+  },
+  
+  getUserHistory: async (userId: number): Promise<Booking[]> => {
+    const response = await api.get<Booking[]>(`/bookings/user/${userId}`);
     return response.data;
   }
 };

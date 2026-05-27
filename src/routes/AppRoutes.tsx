@@ -3,6 +3,7 @@ import { Routes, Route, Navigate } from 'react-router-dom';
 import Home from '../pages/Home';
 import PackageCatalog from '../pages/client/PackageCatalog';
 import PackageManagement from '../pages/admin/PackageManagement';
+import MyBookings from '../pages/client/MyBookings';
 
 export default function AppRoutes() {
   return (
@@ -10,6 +11,7 @@ export default function AppRoutes() {
       {/* Rutas Públicas / Generales */}
       <Route path="/" element={<Home />} />
       <Route path="/packages" element={<PackageCatalog />} />
+      <Route path="/my-bookings" element={<MyBookings />} />
 
       {/* Rutas de Administración */}
       <Route path="/admin/packages" element={<PackageManagement />} />
