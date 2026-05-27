@@ -2,35 +2,90 @@ import { useState, useEffect } from 'react';
 import { 
   Container, Typography, Box, Table, TableBody, TableCell, 
   TableContainer, TableHead, TableRow, Paper, Chip, 
-  CircularProgress, Alert, Button 
+  CircularProgress, Alert, Button, Dialog, DialogTitle, 
+  DialogContent, DialogActions, TextField 
 } from '@mui/material';
-import { Payment } from '@mui/icons-material';
+import { Payment as PaymentIcon, CreditCard } from '@mui/icons-material';
 import { bookingService } from '../../services/bookingService';
+import { paymentService } from '../../services/paymentService';
 import type { Booking } from '../../interfaces/booking.interface';
+import type { PaymentRequest } from '../../interfaces/payment.interface';
 
 export default function MyBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
+  const [openPaymentModal, setOpenPaymentModal] = useState(false);
+  const [selectedBooking, setSelectedBooking] = useState<Booking | null>(null);
+  const [submittingPayment, setSubmittingPayment] = useState(false);
+
+  const [cardForm, setCardForm] = useState<PaymentRequest>({
+    cardNumber: '',
+    cardHolderName: '',
+    expiryDate: '',
+    cvv: ''
+  });
+
   const currentUserId = 1;
 
+  const loadHistory = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      const data = await bookingService.getUserHistory(currentUserId);
+      setBookings(data);
+    } catch (err) {
+      setError('No se pudo recuperar el historial de reservas desde el servidor de Spring Boot.');
+      console.error('[Mingeso-API Error]', err);
+    } finally {
+      setLoading(false);
+    }
+  };
+
   useEffect(() => {
-    const loadHistory = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        const data = await bookingService.getUserHistory(currentUserId);
-        setBookings(data);
-      } catch (err) {
-        setError('No se pudo recuperar el historial de reservas desde el servidor de Spring Boot.');
-        console.error('[Mingeso-API Error]', err);
-      } finally {
-        setLoading(false);
-      }
-    };
     loadHistory();
   }, []);
+
+  const handleOpenPayment = (booking: Booking) => {
+    setSelectedBooking(booking);
+    setCardForm({ cardNumber: '', cardHolderName: '', expiryDate: '', cvv: '' });
+    setOpenPaymentModal(true);
+  };
+
+  const handleExecutePayment = async () => {
+    if (!selectedBooking) return;
+    
+    if (!cardForm.cardNumber || !cardForm.cardHolderName || !cardForm.expiryDate || !cardForm.cvv) {
+      alert('Por favor complete todos los datos de la tarjeta bancaria para la simulación.');
+      return;
+    }
+
+    try {
+      setSubmittingPayment(true);
+      
+      const payloadDto = {
+        cardDetails: {
+          cardNumber: cardForm.cardNumber,
+          cardHolderName: cardForm.cardHolderName,
+          expirationDate: cardForm.expiryDate,
+          cvv: cardForm.cvv
+        }
+      };
+
+      const result = await paymentService.processBookingPayment(selectedBooking.id, payloadDto as any);
+      
+      alert(`¡Pago Procesado Exitosamente!\nCódigo de Transacción Pasarela: ${result.transactionId}\nMonto Total Liquidado: $${result.amount.toLocaleString('es-CL')}`);
+      
+      setOpenPaymentModal(false);
+      loadHistory(); 
+    } catch (err: any) {
+      const errorMsg = err.response?.data?.message || 'Error al procesar el pago simulación. Inténtelo nuevamente.';
+      alert(errorMsg);
+    } finally {
+      setSubmittingPayment(false);
+    }
+  };
 
   const getStateChip = (state: string) => {
     switch (state) {
@@ -102,8 +157,8 @@ export default function MyBookings() {
                       variant="contained"
                       color="success"
                       size="small"
-                      startIcon={<Payment />}
-                      onClick={() => alert(`Procediendo a pagar la reserva #${booking.id}`)}
+                      startIcon={<PaymentIcon />}
+                      onClick={() => handleOpenPayment(booking)}
                     >
                       Pagar
                     </Button>
@@ -123,6 +178,81 @@ export default function MyBookings() {
           </TableBody>
         </Table>
       </TableContainer>
+
+      <Dialog open={openPaymentModal} onClose={() => !submittingPayment && setOpenPaymentModal(false)} maxWidth="xs" fullWidth>
+        <DialogTitle sx={{ fontWeight: 'bold', display: 'flex', alignItems: 'center', gap: 1 }}>
+          <CreditCard color="primary" /> Pasarela de Pago Simulada
+        </DialogTitle>
+        <DialogContent dividers>
+          {selectedBooking && (
+            <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, pt: 1 }}>
+              <Typography variant="subtitle2">
+                Liquidación de Reserva: <strong>#{selectedBooking.id}</strong>
+              </Typography>
+              <Typography variant="body2" color="text.secondary">
+                Destino: {selectedBooking.tourPackage?.destination}
+              </Typography>
+              <Typography variant="h6" color="primary.main" sx={{ fontWeight: 'bold', my: 1 }}>
+                Monto a Pagar: ${selectedBooking.totalAmount.toLocaleString('es-CL')}
+              </Typography>
+
+              <TextField
+                label="Número de Tarjeta"
+                fullWidth
+                required
+                slotProps={{ htmlInput: { maxLength: 16 } }}
+                value={cardForm.cardNumber}
+                onChange={(e) => setCardForm({ ...cardForm, cardNumber: e.target.value.replace(/\D/g, '') })}
+                placeholder="1234567812345678"
+              />
+
+              <TextField
+                label="Nombre del Titular"
+                fullWidth
+                required
+                value={cardForm.cardHolderName}
+                onChange={(e) => setCardForm({ ...cardForm, cardHolderName: e.target.value })}
+                placeholder="JUAN PEREZ"
+              />
+
+              <Box sx={{ display: 'flex', gap: 2 }}>
+                <TextField
+                  label="Vencimiento (MM/AA)"
+                  fullWidth
+                  required
+                  slotProps={{ htmlInput: { maxLength: 5 } }}
+                  value={cardForm.expiryDate}
+                  onChange={(e) => setCardForm({ ...cardForm, expiryDate: e.target.value })}
+                  placeholder="12/29"
+                />
+                <TextField
+                  label="CVV"
+                  type="password"
+                  fullWidth
+                  required
+                  slotProps={{ htmlInput: { maxLength: 3 } }}
+                  value={cardForm.cvv}
+                  onChange={(e) => setCardForm({ ...cardForm, cvv: e.target.value.replace(/\D/g, '') })}
+                  placeholder="123"
+                />
+              </Box>
+            </Box>
+          )}
+        </DialogContent>
+        <DialogActions>
+          <Button onClick={() => setOpenPaymentModal(false)} color="inherit" disabled={submittingPayment}>
+            Cancelar
+          </Button>
+          <Button 
+            onClick={handleExecutePayment} 
+            color="success" 
+            variant="contained"
+            disabled={submittingPayment}
+          >
+            {submittingPayment ? 'Procesando Pago...' : 'Confirmar Transacción'}
+          </Button>
+        </DialogActions>
+      </Dialog>
     </Container>
   );
 }
