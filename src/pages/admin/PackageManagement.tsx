@@ -18,11 +18,11 @@ export default function PackageManagement() {
   const [selectedPackage, setSelectedPackage] = useState<TourPackage | null>(null);
 
   const [formData, setFormData] = useState<TourPackageRequest>({
-    name: '',
+    name: '', // 💡 Agregado para Épica 2 y Reportes Épica 7
     destination: '',
-    description: '',
+    description: '', // 💡 Agregado para el Itinerario del cliente
     price: 0,
-    totalSlots: 0, //
+    totalSlots: 0,
     startDate: '',
     endDate: '',
     status: 'AVAILABLE'
@@ -50,9 +50,9 @@ export default function PackageManagement() {
     if (pkg) {
       setSelectedPackage(pkg);
       setFormData({
-        name: pkg.name,
+        name: pkg.name || '', // 💡 Control de nulos
         destination: pkg.destination,
-        description: pkg.description,
+        description: pkg.description || '', // 💡 Control de nulos
         price: pkg.price,
         totalSlots: pkg.totalSlots,
         startDate: pkg.startDate,
@@ -85,8 +85,10 @@ export default function PackageManagement() {
         setPackages([...packages, created]);
       }
       setOpenModal(false);
-    } catch (err) {
-      alert('Error al guardar el paquete turístico. Revisa los campos y la consola.');
+    } catch (err: any) {
+      // 💡 Capturamos el mensaje de error controlado del backend si la actualización es rechazada
+      const errorMsg = err.response?.data?.message || 'Error al guardar el paquete turístico. Revisa las reglas de negocio.';
+      alert(errorMsg);
     }
   };
 
@@ -111,6 +113,7 @@ export default function PackageManagement() {
       default: return <Chip label={status} size="small" />;
     }
   };
+
   if (loading) {
     return (
       <Box sx={{ display: 'flex', justifyContent: 'center', alignItems: 'center', minHeight: '60vh' }}>
@@ -141,6 +144,8 @@ export default function PackageManagement() {
         <Table>
           <TableHead sx={{ backgroundColor: '#f5f5f5' }}>
             <TableRow>
+              {/* 💡 Columna 'Nombre' añadida al inicio para identificar el paquete */}
+              <TableCell sx={{ fontWeight: 'bold' }}>Nombre</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Destino</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Precio Base</TableCell>
               <TableCell sx={{ fontWeight: 'bold' }}>Cupos</TableCell>
@@ -153,6 +158,8 @@ export default function PackageManagement() {
           <TableBody>
             {packages.map((pkg) => (
               <TableRow key={pkg.id} hover sx={{ opacity: pkg.status === 'DELETED' ? 0.5 : 1 }}>
+                {/* 💡 Despliegue del nombre en la grilla */}
+                <TableCell sx={{ fontWeight: 'medium' }}>{pkg.name || 'Sin Nombre'}</TableCell>
                 <TableCell>{pkg.destination}</TableCell>
                 <TableCell>${pkg.price.toLocaleString('es-CL')}</TableCell>
                 <TableCell>{pkg.totalSlots}</TableCell>
@@ -179,7 +186,7 @@ export default function PackageManagement() {
             ))}
             {packages.length === 0 && !error && (
               <TableRow>
-                <TableCell colSpan={7} align="center" sx={{ color: 'text.secondary', py: 3 }}>
+                <TableCell colSpan={8} align="center" sx={{ color: 'text.secondary', py: 3 }}>
                   No existen paquetes creados en la base de datos de Spring Boot aún.
                 </TableCell>
               </TableRow>
@@ -193,12 +200,35 @@ export default function PackageManagement() {
         <DialogTitle>{selectedPackage ? 'Editar Paquete Turístico' : 'Crear Nuevo Paquete Turístico'}</DialogTitle>
         <DialogContent dividers>
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 2, marginTop: 1 }}>
+            
+            {/* 💡 NUEVO INPUT: Nombre comercial del paquete */}
+            <TextField
+              label="Nombre del Paquete"
+              fullWidth
+              required
+              value={formData.name}
+              onChange={(e) => setFormData({ ...formData, name: e.target.value })}
+              placeholder="Ej: Aventura en San Pedro Premium"
+            />
+
             <TextField
               label="Destino del Viaje"
               fullWidth
               value={formData.destination}
               onChange={(e) => setFormData({ ...formData, destination: e.target.value })}
             />
+
+            {/* 💡 NUEVO INPUT: Descripción detallada / Itinerario */}
+            <TextField
+              label="Descripción / Itinerario del Viaje"
+              fullWidth
+              multiline
+              rows={3}
+              value={formData.description}
+              onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+              placeholder="Detalla los servicios incluidos, hoteles o actividades..."
+            />
+
             <Box sx={{ display: 'flex', gap: 2 }}>
               <TextField
                 label="Precio ($)"
