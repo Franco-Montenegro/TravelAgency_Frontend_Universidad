@@ -10,6 +10,7 @@ import { bookingService } from '../../services/bookingService';
 import { paymentService } from '../../services/paymentService';
 import type { Booking } from '../../interfaces/booking.interface';
 import type { PaymentRequest } from '../../interfaces/payment.interface';
+import keycloak from '../../config/keycloak';
 
 export default function MyBookings() {
   const [bookings, setBookings] = useState<Booking[]>([]);
@@ -27,25 +28,25 @@ export default function MyBookings() {
     cvv: ''
   });
 
-  const currentUserId = 1;
+  const currentKeycloakId = keycloak.subject;
 
   const loadHistory = async () => {
     try {
+      if (!currentKeycloakId) return;
       setLoading(true);
       setError(null);
-      const data = await bookingService.getUserHistory(currentUserId);
+      const data = await bookingService.getUserHistory(currentKeycloakId);
       setBookings(data);
     } catch (err) {
-      setError('No se pudo recuperar el historial de reservas desde el servidor de Spring Boot.');
-      console.error('[Mingeso-API Error]', err);
+      setError('No se pudo recuperar tu historial de reservas.');
+      console.error(err);
     } finally {
       setLoading(false);
     }
   };
-
   useEffect(() => {
     loadHistory();
-  }, []);
+  }, [currentKeycloakId]);
 
   const handleOpenPayment = (booking: Booking) => {
     setSelectedBooking(booking);

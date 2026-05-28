@@ -7,8 +7,8 @@ export const bookingService = {
     return response.data;
   },
   
-  getUserHistory: async (userId: number): Promise<Booking[]> => {
-    const response = await api.get<Booking[]>(`/bookings/user/${userId}`);
+  getUserHistory: async (keycloakId: string): Promise<Booking[]> => {
+    const response = await api.get<Booking[]>(`/bookings/user/keycloak/${keycloakId}`);
     return response.data;
   }
 };
